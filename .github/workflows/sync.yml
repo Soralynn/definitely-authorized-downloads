@@ -20,10 +20,24 @@ jobs:
       - name: Install KodeKloud Downloader
         run: pip install git+https://github.com/debakarr/kodekloud-downloader.git
 
-      - name: Create Cookie File
+      - name: Debug and Create Cookie File
         env:
           KK_COOKIES: ${{ secrets.KK_COOKIES }}
-        run: echo "$KK_COOKIES" > cookies.txt
+        run: |
+          if [ -z "$KK_COOKIES" ]; then
+            echo "::error::KK_COOKIES secret is empty or not set"
+            exit 1
+          fi
+
+          echo "KK_COOKIES length: ${#KK_COOKIES}"
+
+          # Optional: show first line type to verify format (no secrets printed)
+          echo "$KK_COOKIES" | head -n 1
+
+          echo "$KK_COOKIES" > cookies.txt
+
+          # Show file size to confirm it's not empty
+          ls -lh cookies.txt
 
       - name: Download Course
         run: kodekloud dl -o ./CourseDownload -c cookies.txt "${{ inputs.course_url }}"
@@ -35,5 +49,4 @@ jobs:
         run: |
           mkdir -p ~/.config/rclone
           echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
-          # Syncs ONLY the downloaded course folder to Google Drive
           rclone copy ./CourseDownload CloudDriveRemote:KodeKloud/ --progress
