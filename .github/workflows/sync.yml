@@ -7,10 +7,6 @@ on:
         description: 'URL of the KodeKloud course to download'
         required: true
         type: string
-      session_cookie:
-        description: 'Your KodeKloud _secure-user-session cookie value'
-        required: true
-        type: string
 
 jobs:
   download_and_sync:
@@ -25,8 +21,9 @@ jobs:
         run: pip install git+https://github.com/debakarr/kodekloud-downloader.git
 
       - name: Create Cookie File
-        run: |
-          printf ".kodekloud.com\tTRUE\t/\tTRUE\t0\t_secure-user-session\t%s\n" "${{ inputs.session_cookie }}" > cookies.txt
+        env:
+          KK_COOKIES: ${{ secrets.KK_COOKIES }}
+        run: echo "$KK_COOKIES" > cookies.txt
 
       - name: Download Course
         run: kodekloud dl -o ./CourseDownload -c cookies.txt "${{ inputs.course_url }}"
