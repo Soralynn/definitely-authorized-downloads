@@ -1,4 +1,4 @@
-name: KodeKloud to Cloud Drive
+name: KodeKloud Auto Downloader & Sync
 
 on:
   workflow_dispatch:
@@ -6,65 +6,45 @@ on:
       course_url:
         description: 'URL of the KodeKloud course to download'
         required: true
+        default: 'https://learn.kodekloud.com/learn/courses/crash-course-docker-for-absolute-beginner'
+        type: string
+      session_cookie:
+        description: 'Your KodeKloud _secure-user-session token'
+        required: true
         type: string
 
 jobs:
   download_and_sync:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+
+      - name: Install FFmpeg on Linux Runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
       - name: Install KodeKloud Downloader
         run: pip install git+https://github.com/debakarr/kodekloud-downloader.git
 
       - name: Create Cookie File
-        env:
-          KK_COOKIES: ${{ secrets.KK_COOKIES }}
         run: |
-          if [ -z "$KK_COOKIES" ]; then
-            echo "::error::KK_COOKIES secret is empty or not set. Please configure it in repo settings → Secrets and variables → Actions."
-            exit 1
-          fi
-
-          # Write cookies safely (no echo of value)
-          printf '%s\n' "$KK_COOKIES" > cookies.txt
-
-          # Restrict permissions so only the runner user can read it
-          chmod 600 cookies.txt
-
-          # Basic sanity check
-          if [ ! -s cookies.txt ]; then
-            echo "::error::cookies.txt is empty after writing KK_COOKIES"
-            exit 1
-          fi
+          printf ".kodekloud.com\tTRUE\t/\tTRUE\t0\tsession-cookie\t%s\n" "${{ inputs.session_cookie }}" > cookies.txt
 
       - name: Download Course
-        run: kodekloud dl -o ./CourseDownload -c cookies.txt "${{ inputs.course_url }}"
+        run: python -m kodekloud_downloader.cli dl -o ./CourseDownload -c cookies.txt "${{ inputs.course_url }}"
 
       - name: Setup Rclone
         run: sudo curl https://rclone.org/install.sh | sudo bash
 
-      - name: Configure Rclone
-        env:
-          RCLONE_CONFIG_CONTENT: ${{ secrets.RCLONE_CONFIG }}
-        run: |
-          if [ -z "$RCLONE_CONFIG_CONTENT" ]; then
-            echo "::error::RCLONE_CONFIG secret is empty or not set."
-            exit 1
-          fi
-
-          mkdir -p ~/.config/rclone
-          printf '%s\n' "$RCLONE_CONFIG_CONTENT" > ~/.config/rclone/rclone.conf
-          chmod 600 ~/.config/rclone/rclone.conf
-
       - name: Sync to Cloud Drive
         run: |
-          if [ ! -d "./CourseDownload" ]; then
-            echo "::error::CourseDownload directory does not exist. The download step may have failed silently."
-            exit 1
-          fi
-
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
           rclone copy ./CourseDownload CloudDriveRemote:KodeKloud/ --progress
