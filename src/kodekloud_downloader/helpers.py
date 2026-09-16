@@ -154,7 +154,7 @@ def download_video(
     output_path: Path,
     cookie: Optional[str],
     quality: str,
-) -> None:
+) -> List[Path]:
     """
     Download a video using yt_dlp with the given options.
 
@@ -167,7 +167,9 @@ def download_video(
     headers = {
         "Referer": "https://learn.kodekloud.com/",
     }
+    completed = []
     ydl_opts: dict = {
+        "post_hooks": [lambda filename: completed.append(Path(filename))],
         "format": (
             f"bestvideo[height<={quality[:-1]}]+bestaudio/"
             f"best[height<={quality[:-1]}]/best"
@@ -185,6 +187,7 @@ def download_video(
     logger.debug(f"Calling download with following options: {ydl_opts}")
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download(url)
+    return completed
 
 
 def is_normal_content(content) -> bool:
@@ -199,7 +202,7 @@ def is_normal_content(content) -> bool:
     return not (is_lab or is_feedback)
 
 
-def download_all_pdf(content, download_path: Path, cookie: Optional[str]) -> None:
+def download_all_pdf(content, download_path: Path, cookie: Optional[str]) -> List[Path]:
     """
     Download all PDF files from the given content.
 
@@ -207,16 +210,20 @@ def download_all_pdf(content, download_path: Path, cookie: Optional[str]) -> Non
     :param download_path: The output directory for the downloaded PDFs
     :param cookie: The user's authentication cookie (None for browser auth)
     """
+    completed = []
     for link in content.find_all("a"):
         href = link.get("href")
-        if href.endswith("pdf"):
+        if href and href.endswith("pdf"):
             file_name = download_path / Path(href).name
             logger.info(f"Downloading {file_name}...")
             headers = {}
             if cookie is not None:
                 headers["Cookie"] = cookie
             response = requests.get(href, headers=headers, timeout=30)
+            response.raise_for_status()
             file_name.write_bytes(response.content)
+            completed.append(file_name)
+    return completed
 
 
 def parse_token(cookiefile: str) -> Optional[str]:

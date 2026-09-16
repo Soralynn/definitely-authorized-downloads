@@ -52,7 +52,38 @@ def kodekloud(verbose):
     "--browser",
     is_flag=True,
     default=False,
-    help="Extract session token from running Chrome (requires playwright).",
+    help="Open normal Brave or Chrome; paste your session into a hidden prompt.",
+)
+@click.option(
+    "--browser-name",
+    type=click.Choice(["brave", "chrome"]),
+    default="brave",
+    show_default=True,
+)
+@click.option(
+    "--browser-path", type=click.Path(exists=True, dir_okay=False), default=None
+)
+@click.option(
+    "--drive",
+    is_flag=True,
+    help="Upload each completed file to Google Drive; keep local copies.",
+)
+@click.option(
+    "--drive-credentials",
+    type=click.Path(dir_okay=False),
+    default="credentials.json",
+    show_default=True,
+)
+@click.option(
+    "--drive-desktop",
+    is_flag=True,
+    help="Save into Google Drive for desktop; no API credentials needed.",
+)
+@click.option(
+    "--drive-folder",
+    type=click.Path(exists=True, file_okay=False),
+    default=None,
+    help="Your My Drive folder (with --drive-desktop); otherwise detect it.",
 )
 @click.option(
     "--max-duplicate-count",
@@ -67,19 +98,71 @@ def dl(
     output_dir: Union[Path, str],
     cookie: Optional[str],
     browser: bool,
+    browser_name: str,
+    browser_path: Optional[str],
+    drive: bool,
+    drive_credentials: str,
+    drive_desktop: bool,
+    drive_folder: Optional[str],
     max_duplicate_count: int,
 ):
     session_token: Optional[str] = None
+    on_download = None
+    if drive_desktop and drive:
+        raise click.UsageError("Choose --drive-desktop or --drive, not both.")
+    if drive_folder and not drive_desktop:
+        raise click.UsageError("--drive-folder requires --drive-desktop.")
+    if drive_desktop:
+        from kodekloud_downloader.desktop_drive import find_drive_folder
+
+        try:
+            output_dir = Path(drive_folder) if drive_folder else find_drive_folder()
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from None
+        logging.info(
+            "Saving into %s; Google Drive for desktop handles uploads.", output_dir
+        )
+        logging.info(
+            "Check Google Drive's sync status to confirm cloud upload completion."
+        )
+    if drive:
+        from kodekloud_downloader.drive import DriveUploader, authorize
+
+        try:
+            service = authorize(
+                drive_credentials,
+                ".secrets/google-token.json",
+                browser_name,
+                browser_path,
+            )
+        except Exception as exc:
+            raise click.ClickException(f"Drive authorization failed: {exc}") from None
+        uploader = DriveUploader(service, output_dir)
+
+        def on_download(path):
+            try:
+                uploader.upload(path)
+            except Exception:
+                raise click.ClickException(
+                    f"Drive upload failed for {path}. Local file retained; check your "
+                    "connection and Drive quota, then rerun to retry."
+                ) from None
 
     if browser:
         from kodekloud_downloader.browser import get_session_token_from_browser
 
-        session_token = get_session_token_from_browser(auto_launch=True)
+        try:
+            session_token = get_session_token_from_browser(
+                auto_launch=True,
+                browser_name=browser_name,
+                executable_path=browser_path,
+            )
+        except Exception as exc:
+            raise click.ClickException(f"Browser sign-in failed: {exc}") from None
         if not session_token:
             logging.error(
                 "Could not obtain session token from browser. "
-                "Make sure Chrome is running with --remote-debugging-port=9222 "
-                "and you are signed in to https://learn.kodekloud.com"
+                "Make sure you are signed in to https://learn.kodekloud.com"
             )
             raise SystemExit(1)
         logging.info("Session token extracted from browser successfully")
@@ -108,6 +191,8 @@ def dl(
                 output_dir=output_dir,
                 max_duplicate_count=max_duplicate_count,
                 session_token=session_token,
+                cookie=cookie,
+                on_download=on_download,
             )
     elif validators.url(course_url):
         course_detail = parse_course_from_url(course_url)
@@ -117,6 +202,8 @@ def dl(
             output_dir=output_dir,
             max_duplicate_count=max_duplicate_count,
             session_token=session_token,
+            cookie=cookie,
+            on_download=on_download,
         )
     else:
         logging.error("Please enter a valid URL")

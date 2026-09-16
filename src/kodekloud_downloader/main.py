@@ -1,7 +1,7 @@
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional, Union
+from typing import Callable, List, Optional, Union
 
 import markdownify
 import requests
@@ -109,6 +109,7 @@ def download_course(
     max_duplicate_count: int,
     session_token: str,
     cookie: Optional[str] = None,
+    on_download: Optional[Callable[[Path], object]] = None,
 ) -> None:
     """
     Download a course from KodeKloud.
@@ -167,11 +168,16 @@ def download_course(
                         "course.\nPlease refresh/regenerate the cookie or "
                         "enroll in the course and try again."
                     )
-                download_video_lesson(current_video_url, file_path, cookie, quality)
+                completed = download_video_lesson(
+                    current_video_url, file_path, cookie, quality
+                )
                 downloaded_videos[current_video_url] += 1
             else:
                 lesson_url = f"https://learn.kodekloud.com/user/courses/{course.slug}/module/{module.id}/lesson/{lesson.id}"
-                download_resource_lesson(lesson_url, file_path, cookie)
+                completed = download_resource_lesson(lesson_url, file_path, cookie)
+            if on_download:
+                for completed_file in completed:
+                    on_download(completed_file)
 
 
 # Maximum safe path length (Windows MAX_PATH is 260, leave room for
@@ -245,7 +251,7 @@ def download_video_lesson(
     file_path: Path,
     cookie: Optional[str],
     quality: str,
-) -> None:
+) -> List[Path]:
     """
     Download a video lesson.
 
@@ -258,7 +264,7 @@ def download_video_lesson(
     file_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info(f"Parsing url: {lesson_video_url}")
     try:
-        download_video(
+        return download_video(
             url=lesson_video_url,
             output_path=file_path,
             cookie=cookie,
@@ -274,11 +280,12 @@ def download_video_lesson(
             f"Access denied while downloading video or audio file from link "
             f"{lesson_video_url}\n{ex}"
         )
+    return []
 
 
 def download_resource_lesson(
     lesson_url, file_path: Path, cookie: Optional[str]
-) -> None:
+) -> List[Path]:
     """
     Download a resource lesson.
 
@@ -288,6 +295,7 @@ def download_resource_lesson(
     """
     # TODO: Did we break this? I have no idea.
     page = requests.get(lesson_url, timeout=30)
+    page.raise_for_status()
     soup = BeautifulSoup(page.content, "html.parser")
     content = soup.find("div", class_="learndash_content_wrap")
 
@@ -297,4 +305,7 @@ def download_resource_lesson(
         file_path.with_suffix(".md").write_text(
             markdownify.markdownify(content.prettify()), encoding="utf-8"
         )
-        download_all_pdf(content=content, download_path=file_path.parent, cookie=cookie)
+        return [file_path.with_suffix(".md")] + download_all_pdf(
+            content=content, download_path=file_path.parent, cookie=cookie
+        )
+    return []

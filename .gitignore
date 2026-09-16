@@ -133,3 +133,7 @@ dmypy.json
 KodeKloud/
 cookie*.txt
 KodeKloud_Quiz.md
+credentials.json
+client_secret*.json
+.secrets/
+.browser-profile/

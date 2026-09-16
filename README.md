@@ -1,5 +1,13 @@
 # KodeKloud Downloader
 
+> **Local Brave + Google Drive version:** `--browser` now defaults to Brave and
+> opens a normal browser and asks you to paste your session at a hidden prompt.
+> Use `--drive-desktop`
+> to save into Google Drive for desktop without API credentials, or use `--drive`
+> for the optional custom Google Drive API method.
+> See [DRIVE_SETUP.md](DRIVE_SETUP.md) for current setup and usage; the original
+> Chrome authentication instructions below describe the upstream version.
+
 ## Disclaimer
 Please read the following disclaimer carefully before using the Downloader CLI Tool.
 

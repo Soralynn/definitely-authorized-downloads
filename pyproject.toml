@@ -28,6 +28,10 @@ kodekloud = "kodekloud_downloader.cli:kodekloud"
 browser = [
     "playwright>=1.40.0",
 ]
+drive = [
+    "google-api-python-client>=2.100.0",
+    "google-auth-oauthlib>=1.0.0",
+]
 
 [dependency-groups]
 dev = [
