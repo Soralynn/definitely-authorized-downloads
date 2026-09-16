@@ -40,7 +40,7 @@ jobs:
       - name: Download Course
         run: python -m kodekloud_downloader.cli dl -o ./CourseDownload -c cookies.txt "${{ inputs.course_url }}"
 
-      - Name: Setup Rclone
+      - name: Setup Rclone
         run: sudo curl https://rclone.org/install.sh | sudo bash
 
       - name: Sync to Cloud Drive
