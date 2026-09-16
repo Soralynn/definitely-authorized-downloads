@@ -1,0 +1,2 @@
+kodekloud-downloader @ git+https://github.com/debakarr/kodekloud-downloader.git@e5446ac301eaca58abbc259c6237dee19defd9c5
+yt-dlp==2026.3.17
