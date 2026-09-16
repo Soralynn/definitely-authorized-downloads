@@ -27,7 +27,7 @@ jobs:
                                --course ${{ inputs.course_url }}
 
       - name: Setup Rclone
-        uses: animcogn/setup-rclone@v1
+        run: sudo curl https://rclone.org/install.sh | sudo bash
 
       - name: Sync to Cloud Drive
         run: |
