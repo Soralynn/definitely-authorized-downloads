@@ -7,6 +7,10 @@ on:
         description: 'URL of the KodeKloud course to download'
         required: true
         type: string
+      session_cookie:
+        description: 'Your KodeKloud session-cookie (expires in ~1 hour)'
+        required: true
+        type: string
 
 jobs:
   download_and_sync:
@@ -20,11 +24,13 @@ jobs:
       - name: Install KodeKloud Downloader
         run: pip install git+https://github.com/debakarr/kodekloud-downloader.git
 
-      - name: Download Course
+      - name: Create Cookie File
         run: |
-          kodekloud-downloader --email ${{ secrets.KK_EMAIL }} \
-                               --password ${{ secrets.KK_PASSWORD }} \
-                               --course ${{ inputs.course_url }}
+          printf ".kodekloud.com\tTRUE\t/\tTRUE\t0\tsession-cookie\t%s\n" "${{ inputs.session_cookie }}" > cookies.txt
+
+      - name: Download Course
+        # Uses the correct command and points to the generated cookie file
+        run: kodekloud dl -o ./CourseDownload -c cookies.txt "${{ inputs.course_url }}"
 
       - name: Setup Rclone
         run: sudo curl https://rclone.org/install.sh | sudo bash
@@ -33,5 +39,5 @@ jobs:
         run: |
           mkdir -p ~/.config/rclone
           echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
-          # Syncs downloaded files to a 'KodeKloud' folder on Google Drive
-          rclone copy ./ CloudDriveRemote:KodeKloud/ --progress --exclude ".git/**" --exclude ".github/**"
+          # Syncs ONLY the downloaded course folder to Google Drive
+          rclone copy ./CourseDownload CloudDriveRemote:KodeKloud/ --progress
