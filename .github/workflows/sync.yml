@@ -40,11 +40,13 @@ jobs:
       - name: Download Course
         run: python -m kodekloud_downloader.cli dl -o ./CourseDownload -c cookies.txt "${{ inputs.course_url }}"
 
-      - name: Setup Rclone
+      - Name: Setup Rclone
         run: sudo curl https://rclone.org/install.sh | sudo bash
 
       - name: Sync to Cloud Drive
         run: |
           mkdir -p ~/.config/rclone
-          echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
+          cat << 'EOF' > ~/.config/rclone/rclone.conf
+          ${{ secrets.RCLONE_CONFIG }}
+          EOF
           rclone copy ./CourseDownload CloudDriveRemote:KodeKloud/ --progress
